@@ -638,15 +638,17 @@ func (s *Store) Open() (retErr error) {
 		}
 		fp := &FileFingerprint{}
 		if err := fp.ReadFromFile(s.cleanSnapshotPath); err != nil {
+			s.logger.Printf("failed to read clean snapshot (%s), performing full restore", err)
 			return nil
 		}
 		mt, sz, err := fsutil.ModTimeSize(s.dbPath)
 		if err != nil {
+			s.logger.Printf("failed to read mod time from clean snapshot (%s), performing full restore", err)
 			return nil
 		}
 
 		if !mt.Equal(fp.ModTime) || sz != fp.Size {
-			// Basic sanity check didn't pass, full restore needed.
+			s.logger.Printf("clean snapshot failed mod time and size check, full restore needed")
 			return nil
 		}
 
@@ -662,6 +664,12 @@ func (s *Store) Open() (retErr error) {
 			return err
 		}
 		go func() {
+			cleanupAndExit := func(msg string) {
+				s.logger.Print(msg)
+				os.Remove(s.cleanSnapshotPath)
+				s.logger.Fatal("removed clean snapshot marker file. Aborting now, but restarting is safe and can be attempted")
+			}
+
 			// Whatever happens, unblock snapshoting. This is critical because we
 			// locked snapshotting before this goroutine launched.
 			defer s.snapshotCAS.End()
@@ -670,13 +678,22 @@ func (s *Store) Open() (retErr error) {
 			}
 			sum, dur, err := rsum.CRC32WithTiming(s.dbPath)
 			if err != nil {
-				s.logger.Fatalf("failed to calculate CRC32 of database file during clean snapshot check: %s", err)
+				cleanupAndExit(fmt.Sprintf("failed to calculate CRC32 of database file during clean snapshot check: %s", err))
 			}
 			if sum != fp.CRC32 { // Handle zero CRC32 for backward compatibility.
 				if s.crcBadHandler != nil {
+					// This is a test path only.
 					s.crcBadHandler(fp.CRC32, sum)
 				} else {
-					s.logger.Fatalf("CRC32 checksum mismatch during clean snapshot check - aborting")
+					// Fallback to the older IEEE CRC32 format to check for upgrading from v9.
+					s.logger.Println("falling back to IEEE CRC32 calculation for clean snapshot check")
+					sum, err = rsum.CRC32IEEE(s.dbPath)
+					if err != nil {
+						cleanupAndExit(fmt.Sprintf("failed to calculate IEEE CRC32 of database file during clean snapshot check: %s", err))
+					}
+					if sum != fp.CRC32 {
+						cleanupAndExit("CRC32 checksum mismatch during clean snapshot check")
+					}
 				}
 			}
 			s.logger.Printf("clean snapshot check CRC32 matched, calculation took %s", dur)
