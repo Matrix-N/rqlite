@@ -41,7 +41,7 @@ const logo = `
             _ _ _
            | (_) |
   _ __ __ _| |_| |_ ___
- | '__/ _  | | | __/ _ \   The lightweight, distributed
+ | '__/ _  | | | __/ _ \   The lightweight, fault-tolerant,
  | | | (_| | | | ||  __/   relational database.
  |_|  \__, |_|_|\__\___|
          | |               www.rqlite.io
