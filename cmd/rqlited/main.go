@@ -50,8 +50,8 @@ const logo = `
 `
 
 const name = `rqlited`
-const desc = `rqlite is a lightweight, distributed relational database, which uses SQLite as its
-storage engine. It provides an easy-to-use, fault-tolerant store for relational data.
+const desc = `rqlite is a lightweight, fault-tolerant relational database, which uses SQLite as its
+storage engine. It provides easy-to-use and highly-available storage for relational data.
 
 Visit https://www.rqlite.io to learn more.`
 
